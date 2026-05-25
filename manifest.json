@@ -1,0 +1,12 @@
+{
+  "name": "Muscle Reset Protocol",
+  "short_name": "Muscle Reset",
+  "description": "Your 4-month evidence-based muscle regain program",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0a09",
+  "theme_color": "#0b0a09",
+  "orientation": "portrait-primary",
+  "categories": ["health", "fitness"],
+  "icons": []
+}
