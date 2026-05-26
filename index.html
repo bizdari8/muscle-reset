@@ -565,6 +565,13 @@ p{font-size:clamp(14px,3.5vw,16px);line-height:1.6;color:var(--muted)}
         <button class="btn btn-gold" style="font-size:14px;padding:12px" onclick="submitCI()">Save check-in</button>
         <div id="ci-res" style="margin-top:12px;display:none" class="card-inner"></div>
       </div>
+      <!-- Profile reset -->
+      <div class="sec"><div class="lbl">Profile</div><h3 class="mt4">Your details</h3></div>
+      <div class="card fu" id="profile-card">
+        <div style="display:flex;flex-direction:column;gap:10px" id="profile-view"></div>
+        <button class="btn btn-dim mt16 w100" style="font-size:13px;padding:11px" onclick="openEditProfile()">✏️ Edit profile</button>
+        <button class="btn mt8 w100" style="font-size:12px;padding:10px;background:transparent;color:var(--faint);border:1px solid var(--border)" onclick="resetProfile()">Reset all data</button>
+      </div>
     </div>
   </div>
 </div>
@@ -612,6 +619,32 @@ p{font-size:clamp(14px,3.5vw,16px);line-height:1.6;color:var(--muted)}
   </div>
 </div>
 
+<!-- EDIT PROFILE MODAL -->
+<div id="ep-modal" style="position:absolute;inset:0;z-index:90;display:none;align-items:flex-end">
+  <div class="wmod-bg" onclick="closeEditProfile()"></div>
+  <div class="wmod-sheet" style="max-height:88dvh;overflow-y:auto">
+    <div class="wmod-handle"></div>
+    <h3>Edit profile</h3>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:20px">
+      <div class="field"><label>First name</label><input class="inp" id="ep-name" type="text" placeholder="e.g. Alex" autocomplete="given-name"></div>
+      <div class="field"><label>Date of birth</label><input class="inp" id="ep-dob" type="date"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Weight (kg)</label><input class="inp" id="ep-weight" type="number" placeholder="82" step="0.5"></div>
+        <div class="field"><label>Height (cm)</label><input class="inp" id="ep-height" type="number" placeholder="180"></div>
+      </div>
+      <div class="field"><label>Goal</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          <div class="goal-card ep-goal sel" data-goal="regain" onclick="epSelGoal(this)"><div class="goal-radio"></div><div style="font-size:14px;font-weight:600">Regain lost muscle</div></div>
+          <div class="goal-card ep-goal" data-goal="build" onclick="epSelGoal(this)"><div class="goal-radio"></div><div style="font-size:14px;font-weight:600">Build new size &amp; strength</div></div>
+          <div class="goal-card ep-goal" data-goal="recomp" onclick="epSelGoal(this)"><div class="goal-radio"></div><div style="font-size:14px;font-weight:600">Recomposition</div></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-gold mt20" onclick="saveEditProfile()">Save changes</button>
+    <button class="btn btn-ghost mt8 w100" style="font-size:14px" onclick="closeEditProfile()">Cancel</button>
+  </div>
+</div>
+
 </div><!-- #app -->
 
 <script>
@@ -620,6 +653,36 @@ const S = {
   user:{name:'',dob:'',weight:0,height:0,goal:'regain',startDate:'',goalWeight:0},
   workouts:[], weightLog:[], supplements:{}, nutrition:{}, checkIns:[], curWO:null
 };
+
+/* ═══════ PERSISTENCE ═══════ */
+function saveState(){
+  try{
+    localStorage.setItem('mrp_v1',JSON.stringify({
+      user:S.user, workouts:S.workouts, weightLog:S.weightLog,
+      supplements:S.supplements, nutrition:S.nutrition, checkIns:S.checkIns
+    }));
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem('mrp_v1');
+    if(!raw)return;
+    const d=JSON.parse(raw);
+    if(d.user)Object.assign(S.user,d.user);
+    if(d.workouts)S.workouts=d.workouts;
+    if(d.weightLog)S.weightLog=d.weightLog;
+    if(d.supplements)S.supplements=d.supplements;
+    if(d.nutrition)S.nutrition=d.nutrition;
+    if(d.checkIns)S.checkIns=d.checkIns;
+  }catch(e){}
+}
+function resetProfile(){
+  if(!confirm('Reset your profile and all data? This cannot be undone.'))return;
+  try{localStorage.removeItem('mrp_v1');}catch(e){}
+  location.reload();
+}
+// Load saved data immediately on startup
+loadState();
 
 /* ═══════ PROGRAM DATA ═══════ */
 const P1 = {
@@ -820,6 +883,7 @@ function obNext(){
   if(obStep===3){
     S.user.startDate=today();
     S.user.goalWeight=Math.round(S.user.weight+8);
+    saveState();
     document.getElementById('onboarding').classList.remove('active');
     confetti(); showMain(); return;
   }
@@ -1088,6 +1152,7 @@ function getLastPerf(name){
 function finishWV(){
   clearInterval(wvTimer);
   if(S.curWO){S.workouts.push({...S.curWO});S.curWO=null;}
+  saveState();
   closeWV(); renderDash(); renderTraining();
 }
 function closeWV(){document.getElementById('wv').classList.remove('open');document.body.style.overflow='';clearInterval(wvTimer);}
@@ -1143,8 +1208,8 @@ function renderNutr(){
   }).join('');
 }
 function toggleMeal(h){const b=h.nextElementSibling;b.classList.toggle('open');const cv=h.querySelector('svg:last-of-type');if(cv)cv.style.transform=b.classList.contains('open')?'rotate(180deg)':'';}
-function eatMeal(e,i){e.stopPropagation();const td=today();const tn=S.nutrition[td]||(S.nutrition[td]={mealsEaten:new Array(6).fill(false),hyd:0});tn.mealsEaten[i]=!tn.mealsEaten[i];renderNutr();}
-function tapGlass(i){const td=today();const tn=S.nutrition[td]||(S.nutrition[td]={mealsEaten:new Array(6).fill(false),hyd:0});tn.hyd=tn.hyd===i+1?i:i+1;renderNutr();}
+function eatMeal(e,i){e.stopPropagation();const td=today();const tn=S.nutrition[td]||(S.nutrition[td]={mealsEaten:new Array(6).fill(false),hyd:0});tn.mealsEaten[i]=!tn.mealsEaten[i];saveState();renderNutr();}
+function tapGlass(i){const td=today();const tn=S.nutrition[td]||(S.nutrition[td]={mealsEaten:new Array(6).fill(false),hyd:0});tn.hyd=tn.hyd===i+1?i:i+1;saveState();renderNutr();}
 
 /* ═══════ SUPPLEMENTS ═══════ */
 function renderSupps(){
@@ -1167,7 +1232,7 @@ function renderSupps(){
   }).join('');
   calcSuppCost();
 }
-function togSupp(id,el){S.supplements[id]=!S.supplements[id];el.classList.toggle('on',S.supplements[id]);calcSuppCost();}
+function togSupp(id,el){S.supplements[id]=!S.supplements[id];el.classList.toggle('on',S.supplements[id]);saveState();calcSuppCost();}
 function calcSuppCost(){
   let t=0;SUPPS.forEach(s=>{if(S.supplements[s.id])t+=s.cost;});
   document.getElementById('sp-total').textContent=t;
@@ -1186,7 +1251,57 @@ function renderProg(){
   document.getElementById('p-sess').textContent=S.workouts.length;
   document.getElementById('p-sets').textContent=sets;
   document.getElementById('p-exs').textContent=exs;
-  renderWtChart(); renderStrChart();
+  renderWtChart(); renderStrChart(); renderProfileCard();
+}
+function renderProfileCard(){
+  const u=S.user;
+  const pv=document.getElementById('profile-view');
+  if(!pv)return;
+  const rows=[
+    ['Name',u.name||'—'],
+    ['Date of birth',u.dob||'—'],
+    ['Weight',u.weight?u.weight+'kg':'—'],
+    ['Height',u.height?u.height+'cm':'—'],
+    ['Goal',u.goal==='regain'?'Muscle Regain':u.goal==='build'?'Build & Strength':'Recomposition'],
+    ['Start date',u.startDate||'—']
+  ];
+  pv.innerHTML=rows.map(([l,v])=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px;color:var(--muted)">${l}</span>
+      <span style="font-size:13px;font-weight:500">${v}</span>
+    </div>`).join('');
+}
+
+/* ── Edit profile modal ── */
+function openEditProfile(){
+  const u=S.user;
+  document.getElementById('ep-name').value=u.name||'';
+  document.getElementById('ep-dob').value=u.dob||'';
+  document.getElementById('ep-weight').value=u.weight||'';
+  document.getElementById('ep-height').value=u.height||'';
+  document.querySelectorAll('.ep-goal').forEach(c=>c.classList.toggle('sel',c.dataset.goal===u.goal));
+  document.getElementById('ep-modal').style.display='flex';
+}
+function closeEditProfile(){document.getElementById('ep-modal').style.display='none';}
+function saveEditProfile(){
+  const n=document.getElementById('ep-name').value.trim();
+  const w=parseFloat(document.getElementById('ep-weight').value);
+  const h=parseFloat(document.getElementById('ep-height').value);
+  if(!n||!w||!h){alert('Please fill in name, weight, and height.');return;}
+  S.user.name=n;
+  S.user.dob=document.getElementById('ep-dob').value;
+  S.user.weight=w;
+  S.user.height=h;
+  S.user.goalWeight=Math.round(w+8);
+  const sel=document.querySelector('.ep-goal.sel');
+  if(sel)S.user.goal=sel.dataset.goal;
+  saveState();
+  closeEditProfile();
+  renderDash(); renderNutr(); renderProfileCard();
+}
+function epSelGoal(el){
+  document.querySelectorAll('.ep-goal').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
 }
 function renderWtChart(){
   const ctx=document.getElementById('wt-chart').getContext('2d');
@@ -1234,6 +1349,7 @@ function saveWeight(){
   S.weightLog=S.weightLog.filter(e=>e.date!==d);
   S.weightLog.push({date:d,weight:w});S.weightLog.sort((a,b)=>a.date.localeCompare(b.date));
   S.user.weight=w;
+  saveState();
   document.getElementById('wmod').classList.remove('open');
   renderDash();if(curScreen==='prog')renderProg();
 }
@@ -1249,6 +1365,7 @@ function submitCI(){
   const em=avg>=4?'🔥':avg>=3?'💪':avg>=2?'😤':'🛌';
   if(w){S.user.weight=w;S.weightLog.push({date:today(),weight:w});}
   S.checkIns.push({date:today(),weight:w||null,e,sl,m});
+  saveState();
   const r=document.getElementById('ci-res');r.style.display='block';
   r.innerHTML=`<div style="text-align:center;padding:6px 0"><div style="font-size:30px">${em}</div><div class="text-m mt8" style="font-size:13px">Weekly avg: <strong style="color:var(--text)">${avg}/5</strong></div><div class="text-f mt4" style="font-size:12px">Keep showing up — results compound.</div></div>`;
 }
